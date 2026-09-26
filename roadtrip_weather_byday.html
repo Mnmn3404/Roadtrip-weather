@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>October Trip Weather Dashboard | 10月行程天氣儀表板</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --highlight: #f59e0b;
+      --am-color: #f59e0b;
+      --pm-color: #3b82f6;
+      --night-color: #8b5cf6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang HK", "Helvetica Neue", Arial, sans-serif; }
+    
+    body { 
+      background: var(--bg); 
+      color: var(--text); 
+      padding: 12px; 
+      padding-top: max(12px, env(safe-area-inset-top));
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
+      line-height: 1.4; 
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .sticky-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      margin: -12px -12px 14px -12px;
+      padding: 12px 12px 10px 12px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    h1 { font-size: 1.05rem; font-weight: 700; color: #fff; }
+
+    .view-toggle {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .toggle-btn {
+      flex: 1;
+      padding: 8px 12px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .toggle-btn.active {
+      background: #0284c7;
+      color: #fff;
+      border-color: #38bdf8;
+    }
+
+    .nav-scroll {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .nav-scroll::-webkit-scrollbar { display: none; }
+
+    .pill-btn {
+      flex: 0 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      min-height: 36px;
+      border-radius: 18px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+    .pill-btn.active {
+      background: var(--accent);
+      color: #0f172a;
+      font-weight: 700;
+      border-color: var(--accent);
+    }
+
+    .info-box {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .info-box h2 { font-size: 1.02rem; color: #fff; }
+    .info-box p { color: var(--text-muted); font-size: 0.76rem; }
+
+    .forecast-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    @media (min-width: 640px) {
+      .forecast-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+      body { padding: 20px; }
+    }
+    
+    .day-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .day-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 6px;
+    }
+    .day-date { font-weight: 700; font-size: 0.88rem; color: var(--accent); }
+    .day-stop { font-size: 0.78rem; font-weight: 600; color: var(--highlight); text-align: right; }
+
+    .time-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .time-slot {
+      background: #0f172a50;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 8px 4px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    
+    .slot-title { font-size: 0.68rem; font-weight: 700; }
+    .slot-am { color: var(--am-color); }
+    .slot-pm { color: var(--pm-color); }
+    .slot-night { color: var(--night-color); }
+
+    .weather-icon { font-size: 1.25rem; margin: 2px 0; }
+    .condition-text {
+      font-size: 0.68rem;
+      min-height: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.1;
+    }
+    .condition-zh { font-weight: 600; color: #e2e8f0; }
+    .condition-en { font-size: 0.62rem; color: #94a3b8; }
+    
+    .temp-primary { font-size: 0.95rem; font-weight: 700; }
+    .temp-feels { font-size: 0.65rem; color: var(--text-muted); }
+    
+    .slot-metrics {
+      margin-top: 3px;
+      padding-top: 3px;
+      border-top: 1px dashed #334155;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      font-size: 0.65rem;
+    }
+    .metric-precip { color: #38bdf8; }
+    .metric-wind { color: #cbd5e1; }
+
+    .loading { text-align: center; padding: 30px; color: var(--text-muted); font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+  <div class="sticky-header">
+    <header>
+      <h1>🍁 10月行程天氣概況 | Oct Trip Weather</h1>
+      <span id="status-tag" style="color: var(--text-muted); font-size: 0.72rem;">Oct 2 - Oct 22</span>
+    </header>
+
+    <div class="view-toggle">
+      <button class="toggle-btn active" id="btn-mode-calendar" onclick="switchMode('calendar')">📅 行程日曆 (Oct 2 - 22)</button>
+      <button class="toggle-btn" id="btn-mode-city" onclick="switchMode('city')">📍 城市瀏覽 (By City)</button>
+    </div>
+
+    <div class="nav-scroll" id="nav-pills"></div>
+  </div>
+
+  <div class="info-box">
+    <div>
+      <h2 id="info-title">加西及美西行程天氣</h2>
+      <p id="info-sub">即時擷取 Open-Meteo 數據</p>
+    </div>
+  </div>
+
+  <main class="forecast-grid" id="forecast-container">
+    <div class="loading">載入行程天氣數據中... Loading...</div>
+  </main>
+
+  <script>
+    // Updated Itinerary Schedule (Oct 2 - Oct 22)
+    const ITINERARY = [
+      { date: "2026-10-02", label: "Oct 2 (五)", cityKey: "vancouver", stopZh: "溫哥華 Vancouver" },
+      { date: "2026-10-03", label: "Oct 3 (六)", cityKey: "vancouver", stopZh: "溫哥華 Vancouver" },
+      { date: "2026-10-04", label: "Oct 4 (日)", cityKey: "vancouver", stopZh: "溫哥華 Vancouver" },
+      { date: "2026-10-05", label: "Oct 5 (一)", cityKey: "vancouver", stopZh: "溫哥華 Vancouver" },
+      { date: "2026-10-06", label: "Oct 6 (二)", cityKey: "kamloops", stopZh: "甘露市 Kamloops" },
+      { date: "2026-10-07", label: "Oct 7 (三)", cityKey: "golden", stopZh: "甘露市 / 高登 Golden" },
+      { date: "2026-10-08", label: "Oct 8 (四)", cityKey: "lakelouise", stopZh: "高登 / 路易斯湖 Lake Louise" },
+      { date: "2026-10-09", label: "Oct 9 (五)", cityKey: "banff", stopZh: "冰原 / 班夫 Banff" },
+      { date: "2026-10-10", label: "Oct 10 (六)", cityKey: "calgary", stopZh: "班夫 / 卡加利 Calgary" },
+      { date: "2026-10-11", label: "Oct 11 (日)", cityKey: "calgary", stopZh: "卡加利 Calgary" },
+      { date: "2026-10-12", label: "Oct 12 (一)", cityKey: "toronto", stopZh: "多倫多 Toronto" },
+      { date: "2026-10-13", label: "Oct 13 (二)", cityKey: "toronto", stopZh: "多倫多 Toronto" },
+      { date: "2026-10-14", label: "Oct 14 (三)", cityKey: "toronto", stopZh: "多倫多 Toronto" },
+      { date: "2026-10-15", label: "Oct 15 (四)", cityKey: "toronto", stopZh: "多倫多 Toronto" },
+      { date: "2026-10-16", label: "Oct 16 (五)", cityKey: "toronto", stopZh: "多倫多 Toronto" },
+      { date: "2026-10-17", label: "Oct 17 (六)", cityKey: "lax", stopZh: "洛杉磯 LAX" },
+      { date: "2026-10-18", label: "Oct 18 (日)", cityKey: "lasvegas", stopZh: "前往拉斯維加斯 Las Vegas" },
+      { date: "2026-10-19", label: "Oct 19 (一)", cityKey: "williams", stopZh: "馬蹄灣 Horseshoe Bend / 威廉斯 Williams" },
+      { date: "2026-10-20", label: "Oct 20 (二)", cityKey: "flagstaff", stopZh: "大峽谷 Grand Canyon / 旗桿鎮 Flagstaff" },
+      { date: "2026-10-21", label: "Oct 21 (三)", cityKey: "lax", stopZh: "洛杉磯 LAX" },
+      { date: "2026-10-22", label: "Oct 22 (四)", cityKey: "lax", stopZh: "洛杉磯 LAX" }
+    ];
+
+    const CITIES = {
+      vancouver: { nameZh: "溫哥華", nameEn: "Vancouver", lat: 49.2827, lon: -123.1207, tz: "America/Vancouver" },
+      kamloops: { nameZh: "甘露市", nameEn: "Kamloops", lat: 50.6745, lon: -120.3273, tz: "America/Vancouver" },
+      revelstoke: { nameZh: "雷夫爾斯托克", nameEn: "Revelstoke", lat: 51.0000, lon: -118.1957, tz: "America/Vancouver" },
+      golden: { nameZh: "高登", nameEn: "Golden", lat: 51.2978, lon: -116.9622, tz: "America/Edmonton" },
+      lakelouise: { nameZh: "路易斯湖", nameEn: "Lake Louise", lat: 51.4254, lon: -116.1773, tz: "America/Edmonton" },
+      banff: { nameZh: "班夫", nameEn: "Banff", lat: 51.1784, lon: -115.5708, tz: "America/Edmonton" },
+      calgary: { nameZh: "卡加利", nameEn: "Calgary", lat: 51.0447, lon: -114.0719, tz: "America/Edmonton" },
+      toronto: { nameZh: "多倫多", nameEn: "Toronto", lat: 43.6532, lon: -79.3832, tz: "America/Toronto" },
+      lax: { nameZh: "洛杉磯", nameEn: "LAX", lat: 33.9416, lon: -118.4085, tz: "America/Los_Angeles" },
+      lasvegas: { nameZh: "拉斯維加斯", nameEn: "Las Vegas", lat: 36.1699, lon: -115.1398, tz: "America/Los_Angeles" },
+      williams: { nameZh: "威廉斯", nameEn: "Williams", lat: 35.2495, lon: -112.1910, tz: "America/Phoenix" },
+      grandcanyon: { nameZh: "大峽谷", nameEn: "Grand Canyon", lat: 36.0544, lon: -112.1390, tz: "America/Phoenix" },
+      flagstaff: { nameZh: "旗桿鎮", nameEn: "Flagstaff", lat: 35.1981, lon: -111.6513, tz: "America/Phoenix" }
+    };
+
+    const WMO_CODES = {
+      0: { zh: "天晴", en: "Clear", icon: "☀️" },
+      1: { zh: "大致天晴", en: "Mainly Clear", icon: "🌤️" },
+      2: { zh: "短暫陽光", en: "Partly Cloudy", icon: "⛅" },
+      3: { zh: "密雲", en: "Overcast", icon: "☁️" },
+      45: { zh: "有霧", en: "Fog", icon: "🌫️" },
+      51: { zh: "微雨", en: "Light Drizzle", icon: "🌦️" },
+      61: { zh: "局部有微雨", en: "Slight Rain", icon: "🌧️" },
+      63: { zh: "有雨", en: "Moderate Rain", icon: "🌧️" },
+      71: { zh: "有微雪", en: "Slight Snow", icon: "🌨️" },
+      73: { zh: "有雪", en: "Moderate Snow", icon: "❄️" },
+      80: { zh: "有驟雨", en: "Showers", icon: "🌦️" },
+      95: { zh: "有雷暴", en: "Thunderstorm", icon: "⛈️" }
+    };
+
+    let currentMode = 'calendar';
+    let selectedCityKey = 'vancouver';
+
+    function switchMode(mode) {
+      currentMode = mode;
+      document.getElementById('btn-mode-calendar').className = `toggle-btn ${mode === 'calendar' ? 'active' : ''}`;
+      document.getElementById('btn-mode-city').className = `toggle-btn ${mode === 'city' ? 'active' : ''}`;
+      
+      renderPills();
+      loadForecastData();
+    }
+
+    function renderPills() {
+      const container = document.getElementById('nav-pills');
+      container.innerHTML = '';
+
+      if (currentMode === 'city') {
+        Object.keys(CITIES).forEach(key => {
+          const city = CITIES[key];
+          const btn = document.createElement('button');
+          btn.className = `pill-btn ${key === selectedCityKey ? 'active' : ''}`;
+          btn.textContent = `${city.nameZh} ${city.nameEn}`;
+          btn.onclick = () => {
+            selectedCityKey = key;
+            renderPills();
+            loadForecastData();
+          };
+          container.appendChild(btn);
+        });
+      } else {
+        const infoBtn = document.createElement('button');
+        infoBtn.className = 'pill-btn active';
+        infoBtn.textContent = '📍 21 天行程日曆 (Oct 2 - Oct 22)';
+        container.appendChild(infoBtn);
+      }
+    }
+
+    async function loadForecastData() {
+      const container = document.getElementById('forecast-container');
+      const title = document.getElementById('info-title');
+      const sub = document.getElementById('info-sub');
+
+      if (currentMode === 'city') {
+        const city = CITIES[selectedCityKey];
+        title.textContent = `${city.nameZh} ${city.nameEn}`;
+        sub.textContent = `${city.lat}°N, ${Math.abs(city.lon)}°W (${city.tz})`;
+        container.innerHTML = `<div class="loading">正在擷取 ${city.nameZh} 天氣數據...</div>`;
+
+        const data = await fetchCityForecast(city);
+        renderCityCards(data);
+      } else {
+        title.textContent = "Oct 2 – Oct 22 行程日曆預測";
+        sub.textContent = "自動按每日行程地點載入預測";
+        container.innerHTML = `<div class="loading">正在載入行程地點天氣數據...</div>`;
+
+        renderCalendarCards();
+      }
+    }
+
+    async function fetchCityForecast(city) {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,windspeed_10m,weathercode&forecast_days=14&timezone=${encodeURIComponent(city.tz)}`;
+      try {
+        const res = await fetch(url);
+        return await res.json();
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function renderCalendarCards() {
+      const container = document.getElementById('forecast-container');
+      container.innerHTML = '';
+
+      const cityDataMap = {};
+
+      for (let item of ITINERARY) {
+        if (!cityDataMap[item.cityKey]) {
+          cityDataMap[item.cityKey] = await fetchCityForecast(CITIES[item.cityKey]);
+        }
+
+        const cityData = cityDataMap[item.cityKey];
+        const card = document.createElement('div');
+        card.className = 'day-card';
+
+        let slotsHTML = '';
+
+        if (cityData && cityData.hourly) {
+          const timeArr = cityData.hourly.time;
+          const targetPrefix = item.date;
+          let amIdx = timeArr.findIndex(t => t.startsWith(targetPrefix + "T09:00"));
+          
+          if (amIdx === -1) {
+            amIdx = 9; // Fallback index if exact date extends beyond API window
+          }
+
+          const pmIdx = amIdx + 6;
+          const nightIdx = amIdx + 12;
+
+          slotsHTML = `
+            <div class="time-slots">
+              ${createSlotHTML("上午", "09:00", "am", cityData.hourly, amIdx)}
+              ${createSlotHTML("下午", "15:00", "pm", cityData.hourly, pmIdx)}
+              ${createSlotHTML("晚上", "21:00", "night", cityData.hourly, nightIdx)}
+            </div>
+          `;
+        } else {
+          slotsHTML = `<div style="text-align:center; padding:15px; color:#94a3b8; font-size:0.8rem;">數據載入中或超出預報範圍</div>`;
+        }
+
+        card.innerHTML = `
+          <div class="day-header">
+            <span class="day-date">${item.label}</span>
+            <span class="day-stop">📍 ${item.stopZh}</span>
+          </div>
+          ${slotsHTML}
+        `;
+
+        container.appendChild(card);
+      }
+    }
+
+    function renderCityCards(data) {
+      const container = document.getElementById('forecast-container');
+      container.innerHTML = '';
+
+      if (!data || !data.hourly) {
+        container.innerHTML = `<div class="loading">無法載入數據</div>`;
+        return;
+      }
+
+      const hourly = data.hourly;
+      for (let day = 0; day < 14; day++) {
+        const amIdx = (day * 24) + 9;
+        const pmIdx = (day * 24) + 15;
+        const nightIdx = (day * 24) + 21;
+
+        if (amIdx >= hourly.time.length) break;
+
+        const dateStr = hourly.time[amIdx].split('T')[0];
+        const dateObj = new Date(dateStr + 'T00:00:00');
+        const formattedDate = dateObj.toLocaleDateString('zh-HK', { month: 'short', day: 'numeric', weekday: 'short' });
+
+        const card = document.createElement('div');
+        card.className = 'day-card';
+        card.innerHTML = `
+          <div class="day-header">
+            <span class="day-date">${formattedDate}</span>
+            <span class="day-stop">第 ${day + 1} 天</span>
+          </div>
+          <div class="time-slots">
+            ${createSlotHTML("上午", "09:00", "am", hourly, amIdx)}
+            ${createSlotHTML("下午", "15:00", "pm", hourly, pmIdx)}
+            ${createSlotHTML("晚上", "21:00", "night", hourly, nightIdx)}
+          </div>
+        `;
+        container.appendChild(card);
+      }
+    }
+
+    function createSlotHTML(labelZh, labelEn, slotClass, hourly, idx) {
+      if (!hourly.temperature_2m || hourly.temperature_2m[idx] === undefined) return '';
+      const temp = Math.round(hourly.temperature_2m[idx]);
+      const feels = Math.round(hourly.apparent_temperature[idx]);
+      const precip = hourly.precipitation_probability[idx] ?? 0;
+      const wind = Math.round(hourly.windspeed_10m[idx] ?? 0);
+      const code = hourly.weathercode[idx];
+      const weather = WMO_CODES[code] || { zh: "大致天晴", en: "Fine", icon: "🌤️" };
+
+      return `
+        <div class="time-slot">
+          <div class="slot-title slot-${slotClass}">${labelZh} <span style="font-size:0.58rem; opacity:0.8;">${labelEn}</span></div>
+          <div class="weather-icon">${weather.icon}</div>
+          <div class="condition-text">
+            <span class="condition-zh">${weather.zh}</span>
+            <span class="condition-en">${weather.en}</span>
+          </div>
+          <div class="temp-primary">${temp}°C</div>
+          <div class="temp-feels">體感 ${feels}°C</div>
+          <div class="slot-metrics">
+            <span class="metric-precip">💧 ${precip}%</span>
+            <span class="metric-wind">💨 ${wind}km/h</span>
+          </div>
+        </div>
+      `;
+    }
+
+    renderPills();
+    loadForecastData();
+  </script>
+</body>
+</html>
