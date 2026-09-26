@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>14-Day Cross-Border Weather Dashboard | 14天天氣儀表板</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --am-color: #f59e0b;
+      --pm-color: #3b82f6;
+      --night-color: #8b5cf6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "PingFang HK", "Helvetica Neue", Arial, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 20px; line-height: 1.5; }
+
+    header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--card-border); }
+    h1 { font-size: 1.4rem; font-weight: 700; color: #fff; }
+
+    .region-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); margin-bottom: 8px; width: 100%; }
+    .city-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+    .city-btn { background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-muted); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 0.88rem; transition: all 0.2s; }
+    .city-btn:hover { background: #2d3748; color: #fff; }
+    .city-btn.active { background: var(--accent); color: #0f172a; font-weight: 700; border-color: var(--accent); }
+
+    .location-info { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
+    .location-info h2 { font-size: 1.25rem; }
+    .location-info p { color: var(--text-muted); font-size: 0.88rem; }
+
+    .forecast-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+    
+    .day-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .day-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 8px; }
+    .day-date { font-weight: 700; font-size: 0.95rem; color: var(--accent); }
+    .day-summary { font-size: 0.85rem; color: var(--text-muted); }
+
+    .time-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .time-slot { background: #0f172a50; border: 1px solid var(--card-border); border-radius: 8px; padding: 10px 6px; text-align: center; display: flex; flex-direction: column; gap: 4px; }
+    
+    .slot-title { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.5px; }
+    .slot-am { color: var(--am-color); }
+    .slot-pm { color: var(--pm-color); }
+    .slot-night { color: var(--night-color); }
+
+    .weather-icon { font-size: 1.4rem; margin: 2px 0; }
+    .condition-text { font-size: 0.72rem; color: var(--text-muted); min-height: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; }
+    .condition-zh { font-weight: 600; color: #e2e8f0; }
+    .condition-en { font-size: 0.65rem; color: #94a3b8; }
+    
+    .temp-primary { font-size: 1.05rem; font-weight: 700; }
+    .temp-feels { font-size: 0.7rem; color: var(--text-muted); }
+    
+    .slot-metrics { margin-top: 4px; padding-top: 4px; border-top: 1px dashed #334155; display: flex; flex-direction: column; gap: 2px; font-size: 0.7rem; font-weight: 500; }
+    .metric-precip { color: #38bdf8; }
+    .metric-wind { color: #cbd5e1; }
+
+    .loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 1.1rem; }
+    .error-msg { color: #ef4444; text-align: center; padding: 20px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🗺️ 14天路線天氣預測 | 14-Day Route Weather Dashboard</h1>
+    <div id="status-tag" style="color: var(--text-muted); font-size: 0.85rem;">請選擇地點以查看預測 | Select location</div>
+  </header>
+
+  <div class="city-nav" id="city-buttons"></div>
+
+  <div class="location-info" id="location-header">
+    <div>
+      <h2 id="active-city-name">載入中... Loading...</h2>
+      <p id="active-city-coords">--</p>
+    </div>
+    <div style="text-align: right;">
+      <p id="timezone-label">時區 Timezone: --</p>
+    </div>
+  </div>
+
+  <main class="forecast-grid" id="forecast-container">
+    <div class="loading">正在擷取天氣數據... Fetching weather data...</div>
+  </main>
+
+  <script>
+    const CITIES = [
+      // Canada 加拿大
+      { nameZh: "溫哥華", nameEn: "Vancouver", regionZh: "加拿大", regionEn: "Canada", lat: 49.2827, lon: -123.1207, tz: "America/Vancouver" },
+      { nameZh: "甘露市 / 錦祿", nameEn: "Kamloops", regionZh: "加拿大", regionEn: "Canada", lat: 50.6745, lon: -120.3273, tz: "America/Vancouver" },
+      { nameZh: "雷夫爾斯托克", nameEn: "Revelstoke", regionZh: "加拿大", regionEn: "Canada", lat: 51.0000, lon: -118.1957, tz: "America/Vancouver" },
+      { nameZh: "高登", nameEn: "Golden", regionZh: "加拿大", regionEn: "Canada", lat: 51.2978, lon: -116.9622, tz: "America/Edmonton" },
+      { nameZh: "路易斯湖", nameEn: "Lake Louise", regionZh: "加拿大", regionEn: "Canada", lat: 51.4254, lon: -116.1773, tz: "America/Edmonton" },
+      { nameZh: "哥倫比亞冰原", nameEn: "Columbia Icefield", regionZh: "加拿大", regionEn: "Canada", lat: 52.2203, lon: -117.2244, tz: "America/Edmonton" },
+      { nameZh: "班夫", nameEn: "Banff", regionZh: "加拿大", regionEn: "Canada", lat: 51.1784, lon: -115.5708, tz: "America/Edmonton" },
+      { nameZh: "卡加利", nameEn: "Calgary", regionZh: "加拿大", regionEn: "Canada", lat: 51.0447, lon: -114.0719, tz: "America/Edmonton" },
+      { nameZh: "多倫多", nameEn: "Toronto", regionZh: "加拿大", regionEn: "Canada", lat: 43.6532, lon: -79.3832, tz: "America/Toronto" },
+      // US Southwest 美國西南部
+      { nameZh: "洛杉磯", nameEn: "LAX (Los Angeles)", regionZh: "美國西南部", regionEn: "US Southwest", lat: 33.9416, lon: -118.4085, tz: "America/Los_Angeles" },
+      { nameZh: "拉斯維加斯", nameEn: "Las Vegas", regionZh: "美國西南部", regionEn: "US Southwest", lat: 36.1699, lon: -115.1398, tz: "America/Los_Angeles" },
+      { nameZh: "大峽谷", nameEn: "Grand Canyon", regionZh: "美國西南部", regionEn: "US Southwest", lat: 36.0544, lon: -112.1390, tz: "America/Phoenix" },
+      { nameZh: "威廉斯", nameEn: "Williams", regionZh: "美國西南部", regionEn: "US Southwest", lat: 35.2495, lon: -112.1910, tz: "America/Phoenix" },
+      { nameZh: "旗桿鎮", nameEn: "Flagstaff", regionZh: "美國西南部", regionEn: "US Southwest", lat: 35.1981, lon: -111.6513, tz: "America/Phoenix" }
+    ];
+
+    // Hong Kong Observatory style weather terminology
+    const WMO_CODES = {
+      0: { zh: "天晴", en: "Clear", icon: "☀️" },
+      1: { zh: "大致天晴", en: "Mainly Clear", icon: "🌤️" },
+      2: { zh: "短暫陽光", en: "Partly Cloudy", icon: "⛅" },
+      3: { zh: "密雲", en: "Overcast", icon: "☁️" },
+      45: { zh: "有霧", en: "Fog", icon: "🌫️" },
+      48: { zh: "薄霧/結冰霧", en: "Freezing Fog", icon: "🌫️" },
+      51: { zh: "微雨", en: "Light Drizzle", icon: "🌦️" },
+      53: { zh: "細雨", en: "Moderate Drizzle", icon: "🌦️" },
+      55: { zh: "密雲有雨", en: "Dense Drizzle", icon: "🌧️" },
+      61: { zh: "局部地區有微雨", en: "Slight Rain", icon: "🌧️" },
+      63: { zh: "有雨", en: "Moderate Rain", icon: "🌧️" },
+      65: { zh: "大雨", en: "Heavy Rain", icon: "🌧️" },
+      66: { zh: "凍雨", en: "Freezing Rain", icon: "🌧️❄️" },
+      67: { zh: "大凍雨", en: "Heavy Freezing Rain", icon: "🌧️❄️" },
+      71: { zh: "有微雪", en: "Slight Snow", icon: "🌨️" },
+      73: { zh: "有雪", en: "Moderate Snow", icon: "🌨️" },
+      75: { zh: "大雪", en: "Heavy Snow", icon: "❄️" },
+      77: { zh: "雪粒", en: "Snow Grains", icon: "❄️" },
+      80: { zh: "有驟雨", en: "Rain Showers", icon: "🌦️" },
+      81: { zh: "頻密驟雨", en: "Moderate Showers", icon: "🌧️" },
+      82: { zh: "狂風大雨", en: "Violent Showers", icon: "⛈️" },
+      85: { zh: "陣雪", en: "Snow Showers", icon: "🌨️" },
+      86: { zh: "強陣雪", en: "Heavy Snow Showers", icon: "❄️" },
+      95: { zh: "有雷暴", en: "Thunderstorm", icon: "⛈️" },
+      96: { zh: "雷暴及冰雹", en: "Thunderstorm & Hail", icon: "⛈️🌨️" },
+      99: { zh: "狂風雷暴", en: "Heavy Thunderstorm", icon: "⛈️🌨️" }
+    };
+
+    let selectedCityIndex = 0;
+
+    function initNav() {
+      const navContainer = document.getElementById('city-buttons');
+      navContainer.innerHTML = '';
+
+      let currentRegion = "";
+
+      CITIES.forEach((city, index) => {
+        const regionKey = `${city.regionZh} ${city.regionEn}`;
+        if (regionKey !== currentRegion) {
+          currentRegion = regionKey;
+          const label = document.createElement('div');
+          label.className = 'region-label';
+          label.textContent = `${city.regionZh} | ${city.regionEn}`;
+          navContainer.appendChild(label);
+        }
+
+        const btn = document.createElement('button');
+        btn.className = `city-btn ${index === selectedCityIndex ? 'active' : ''}`;
+        btn.textContent = `${city.nameZh} ${city.nameEn}`;
+        btn.onclick = () => selectCity(index);
+        navContainer.appendChild(btn);
+      });
+    }
+
+    function selectCity(index) {
+      selectedCityIndex = index;
+      initNav();
+      fetchForecast(CITIES[index]);
+    }
+
+    async function fetchForecast(city) {
+      const container = document.getElementById('forecast-container');
+      const headerTitle = document.getElementById('active-city-name');
+      const headerCoords = document.getElementById('active-city-coords');
+      const headerTz = document.getElementById('timezone-label');
+      const statusTag = document.getElementById('status-tag');
+
+      headerTitle.textContent = `${city.nameZh} ${city.nameEn} (${city.regionZh})`;
+      headerCoords.textContent = `經緯度 Coordinates: ${city.lat}°N, ${Math.abs(city.lon)}°W`;
+      headerTz.textContent = `時區 Timezone: ${city.tz}`;
+      container.innerHTML = `<div class="loading">正在載入 ${city.nameZh} 14天預測... Fetching forecast...</div>`;
+      statusTag.textContent = "更新中... Updating...";
+
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,windspeed_10m,weathercode&forecast_days=14&timezone=${encodeURIComponent(city.tz)}`;
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("API request failed");
+        const data = await res.json();
+        
+        renderForecast(data);
+        statusTag.textContent = `已更新 Updated: ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+      } catch (err) {
+        container.innerHTML = `<div class="error-msg">無法載入天氣數據，請檢查網絡連線。 Failed to load weather data.</div>`;
+        statusTag.textContent = "載入失敗 Error";
+      }
+    }
+
+    function renderForecast(data) {
+      const container = document.getElementById('forecast-container');
+      container.innerHTML = '';
+
+      const hourly = data.hourly;
+      const totalDays = 14;
+
+      for (let day = 0; day < totalDays; day++) {
+        const amIdx = (day * 24) + 9;
+        const pmIdx = (day * 24) + 15;
+        const nightIdx = (day * 24) + 21;
+
+        if (amIdx >= hourly.time.length) break;
+
+        const dateStr = hourly.time[amIdx].split('T')[0];
+        const dateObj = new Date(dateStr + 'T00:00:00');
+        const formattedDate = dateObj.toLocaleDateString('zh-HK', { month: 'short', day: 'numeric', weekday: 'short' });
+        const formattedDateEn = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        const card = document.createElement('div');
+        card.className = 'day-card';
+
+        card.innerHTML = `
+          <div class="day-header">
+            <span class="day-date">${formattedDate} <small style="font-weight:normal; color:var(--text-muted);">(${formattedDateEn})</small></span>
+            <span class="day-summary">第 ${day + 1} 天 (Day ${day + 1})</span>
+          </div>
+          <div class="time-slots">
+            ${createTimeSlotHTML("上午", "AM 09:00", "am", hourly, amIdx)}
+            ${createTimeSlotHTML("下午", "PM 15:00", "pm", hourly, pmIdx)}
+            ${createTimeSlotHTML("晚上", "Night 21:00", "night", hourly, nightIdx)}
+          </div>
+        `;
+
+        container.appendChild(card);
+      }
+    }
+
+    function createTimeSlotHTML(labelZh, labelEn, slotClass, hourly, idx) {
+      const temp = Math.round(hourly.temperature_2m[idx]);
+      const feels = Math.round(hourly.apparent_temperature[idx]);
+      const precip = hourly.precipitation_probability[idx] ?? 0;
+      const wind = Math.round(hourly.windspeed_10m[idx] ?? 0);
+      const code = hourly.weathercode[idx];
+      const weather = WMO_CODES[code] || { zh: "未知", en: "Unknown", icon: "🌡️" };
+
+      return `
+        <div class="time-slot">
+          <div class="slot-title slot-${slotClass}">${labelZh} <span style="font-size:0.62rem; opacity:0.8;">${labelEn}</span></div>
+          <div class="weather-icon" title="${weather.zh} ${weather.en}">${weather.icon}</div>
+          <div class="condition-text">
+            <span class="condition-zh">${weather.zh}</span>
+            <span class="condition-en">${weather.en}</span>
+          </div>
+          <div class="temp-primary">${temp}°C</div>
+          <div class="temp-feels">體感 ${feels}°C</div>
+          <div class="slot-metrics">
+            <span class="metric-precip">💧 ${precip}%</span>
+            <span class="metric-wind">💨 ${wind} km/h</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Initialize Dashboard
+    initNav();
+    fetchForecast(CITIES[0]);
+  </script>
+</body>
+</html>
